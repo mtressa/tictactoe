@@ -85,7 +85,8 @@ void Game::promptInput()
 
 void Game::start()
 {
-	promptInput();
+    promptInput();
+    fillBestIndexMap();
 	while (true)
 	{
 		renderField();
@@ -104,7 +105,7 @@ void Game::makePlayer1Move()
 {
 	if (Player1Type == AI)
 	{
-		int idx = computeBestMove(_field, 'X').first;
+		int idx = computeBestMove(_field, 'X', true).first;
 		_field[idx] = 'X';
 	}
 	else
@@ -118,7 +119,7 @@ void Game::makePlayer2Move()
 {
 	if (Player2Type == AI)
 	{
-		int idx = computeBestMove(_field, 'O').first;
+		int idx = computeBestMove(_field, 'O', true).first;
 		_field[idx] = 'O';
 	}
 	else
@@ -140,21 +141,46 @@ std::pair<int, int> Game::promptCell() const
 
 void Game::printGameResult() const
 {
-	if (isDraw())
-		std::cout << "Draw!" << std::endl;
-	else
-		std::cout << "Player" << (isPlayerWin('X') ? "1" : "2") << " is WINNER!"
-				  << std::endl;
+    if (isDraw(_field))
+    {
+        std::cout << "Draw!" << std::endl;
+        return;
+    }
+    std::string winner;
+    switch (gameType) {
+        case HU_AI:
+            winner = (!(isPlayerWin(_field, 'X') != !(firstMove))) ? ("AI") : ("Human");
+            break;
+        case HU_HU:
+            winner = "Player" + ((isPlayerWin(_field, 'X')) ? (static_cast<std::string>("1")) : (static_cast<std::string>("2")));
+            break;
+        case AI_AI:
+            winner = "AI " + ((isPlayerWin(_field, 'X') ? (static_cast<std::string>("1")) : (static_cast<std::string>("2"))));
+            break;
+    }
+    std::cout << winner << " is WINNER!" << std::endl;
 }
 
 std::pair<int, int>
-Game::computeBestMove(const std::vector<char> &l_field, char sign)
+Game::computeBestMove(const std::vector<char> &l_field, char sign, bool useAsync)
 {
-	static auto minFunc = [](const auto &lhs, const auto &rhs)
-	{
-		return rhs.second < lhs.second;
-	};
-	static auto maxFunc = [](const auto &lhs, const auto &rhs)
+    int winIndex = getInstantWinIndex(l_field, getEnemySign(sign));
+    if (winIndex != -1)
+    {
+        if ((sign != 'O') != (!firstMove))
+            return (std::make_pair(winIndex, 0));
+        else
+            return (std::make_pair(winIndex, 100));
+    }
+    winIndex = getInstantWinIndex(l_field, sign);
+    if (winIndex != -1)
+    {
+        if ((sign != 'O') != (!firstMove))
+            return (std::make_pair(winIndex, 100));
+        else
+            return (std::make_pair(winIndex, 0));
+    }
+	static auto comp = [](const auto &lhs, const auto &rhs)
 	{
 		return lhs.second < rhs.second;
 	};
@@ -162,29 +188,82 @@ Game::computeBestMove(const std::vector<char> &l_field, char sign)
 	typedef std::vector<std::pair<int, int>> pair_vec;
 
 	std::vector<int>	freeIndexes = getFreeIndexes(l_field);
-	pair_vec			results;
+    int                 freeIndexCount = freeIndexes.size();
 
-	for (int idx: freeIndexes)
-	{
-		std::vector<char> copy(l_field);
-		copy[idx] = sign;
+    if (freeIndexCount > 9)
+    {
+        int temp = getBestIndexFromMap(l_field);
+        if (temp != -1)
+        {
+            if ((sign != 'O') != (!firstMove))
+                return (std::make_pair(temp, 100));
+            else
+                return (std::make_pair(temp, 0));
+        }
+    }
+
+	pair_vec			results;
+    std::vector<std::vector<char>> fieldCopies(freeIndexes.size(), l_field);
+    std::vector<std::pair<int, std::future<std::pair<int, int>>>> asyncResults;
+    if (useAsync)
+        asyncResults.reserve(freeIndexes.size());
+
+	for (int i = 0; i < freeIndexes.size(); ++i) {
+        std::vector<char> &copy = fieldCopies[i];
+        int idx = freeIndexes[i];
+
+        copy[idx] = sign;
+    }
+    for (int i = 0; i < freeIndexes.size(); ++i) {
+        std::vector<char>   &copy = fieldCopies[i];
+        int                 idx = freeIndexes[i];
+
 		if (isGameOver(copy))
 		{
-			if (isPlayerWin(sign))
-				return (std::make_pair(idx, 100));
+			if (!isPlayerWin(copy, 'X') != !firstMove)
+            {
+//                return (std::make_pair(idx, 0));
+                results.emplace_back(idx, 0);
+            }
 			else
-				return (std::make_pair(idx, 0));
+            {
+                return (std::make_pair(idx, 100));
+//                results.emplace_back(idx, 100);
+            }
 		}
-		results.emplace_back(idx,
-							 computeBestMove(copy, getEnemySign(sign)).second);
+        else
+        {
+            if (useAsync)
+            {
+                auto temp = std::async(std::launch::async,
+                                       &Game::computeBestMove,
+                                       *this,
+                                       std::ref(fieldCopies[i]),
+                                       sign,
+                                       false);
+                asyncResults.emplace_back(idx, std::move(temp));
+            }
+            else
+            {
+                results.emplace_back(idx,
+                                     computeBestMove(copy, getEnemySign(sign)).second);
+            }
+        }
 	}
+    if (useAsync)
+    {
+        for (auto& x : asyncResults)
+        {
+            results.emplace_back(x.first, x.second.get().second);
+        }
+    }
 	pair_vec::iterator bestValueIter;
-	if ((sign != 'X') != (!firstMove)) // A XOR B
+	if ((sign != 'O') != (!firstMove)) // 'X' XOR firstMove
 		bestValueIter = std::max_element(results.begin(), results.end(),
-										 maxFunc);
+										 comp);
 	else
 		bestValueIter = std::min_element(results.begin(), results.end(),
-										 minFunc);
+										 comp);
 	std::pair<int, int> ret = std::make_pair(bestValueIter->first,
 											 std::accumulate(results.begin(),
 															 results.end(),
@@ -196,6 +275,10 @@ Game::computeBestMove(const std::vector<char> &l_field, char sign)
 																		 b.second);
 															 }) /
 											 results.size());
+//    for (int i = 0; i < level; ++i) fs << '\t';
+//    for (auto& x : results) fs << x.first << ' ' << x.second << " | ";
+//    fs << '\n';
+//    fs.close();
 	return (ret);
 }
 
@@ -222,7 +305,7 @@ char Game::getEnemySign(char mySign)
 
 bool Game::isGameOver(const std::vector<char>& l_field) const
 {
-	if (getFreeIndexes(l_field).empty() || isPlayerWin('X') || isPlayerWin('O') || isDraw())
+	if (getFreeIndexes(l_field).empty() || isPlayerWin(l_field, 'X') || isPlayerWin(l_field, 'O') || isDraw(l_field))
 		return (true);
 	return (false);
 }
@@ -237,7 +320,7 @@ bool Game::isFieldEmpty() const
 	return (true);
 }
 
-bool Game::isPlayerWin(char sign) const
+bool Game::isPlayerWin(const std::vector<char>& l_field, char sign) const
 {
 	int verticalCounter = 0;
 	int horizontalCounter = 0;
@@ -246,9 +329,9 @@ bool Game::isPlayerWin(char sign) const
 	{
 		for (int j = 0; j < width; ++j)
 		{
-			if (_field[j + width * i] == sign)
+			if (l_field[j + width * i] == sign)
 				++horizontalCounter;
-			if (_field[i + width * j] == sign)
+			if (l_field[i + width * j] == sign)
 				++verticalCounter;
 		}
 		if (horizontalCounter == width)
@@ -260,7 +343,7 @@ bool Game::isPlayerWin(char sign) const
 	}
 	for (int i = 0; i < width; ++i)
 	{
-		if (_field[i + width * i] == sign)
+		if (l_field[i + width * i] == sign)
 			++diagonalCounter;
 	}
 	if (diagonalCounter == width)
@@ -268,7 +351,7 @@ bool Game::isPlayerWin(char sign) const
 	diagonalCounter = 0;
 	for (int i = 0; i < width; ++i)
 	{
-		if (_field[i + width * (width - 1 - i)] == sign)
+		if (l_field[i + width * (width - 1 - i)] == sign)
 			++diagonalCounter;
 	}
 	if (diagonalCounter == width)
@@ -281,9 +364,9 @@ char Game::getFieldSign(int x, int y)
 	return (_field[x + width * y]);
 }
 
-bool Game::isDraw() const
+bool Game::isDraw(const std::vector<char>& l_field) const
 {
-	if (getFreeIndexes(_field).empty() && !isPlayerWin('X') && !isPlayerWin('O'))
+	if (getFreeIndexes(l_field).empty() && !isPlayerWin(l_field, 'X') && !isPlayerWin(l_field, 'O'))
 		return (true);
 	return (false);
 }
@@ -307,4 +390,135 @@ void Game::renderField() const
 		std::cout<<"|---";
 	}
 	std::cout<<"|"<<std::endl;
+}
+
+void Game::renderField(const std::vector<char> &l_field) const
+{
+//    std::ofstream fs("log", std::ios::app);
+//    for (int i = 0; i < 4 * width + 1; ++i) fs << '_';
+//        fs << '\n';
+
+//    for (int i = 0; i < width; ++i)
+//    {
+//        for (int j = 0; j < width; j++)
+//        {
+//            fs<<"| "<<l_field[j + i * width]<<' ';
+//        }
+//        fs<<"|\n";
+//    }
+
+//    for (int i = 0; i < width; ++i)
+//    {
+//        fs<<"|---";
+//    }
+//    fs<<"|"<<std::endl;
+//    fs.close();
+}
+
+void Game::fillBestIndexMap() {
+    auto &map = _bestIndexMap;
+    map.resize(width * width);
+    for (int i = 0; i < width; ++i)
+    {
+        for (int j = 0; j < width; ++j)
+        {
+            ++map[i + width * j];
+            ++map[j +  width * i];
+        }
+    }
+    for (int i = 0; i < width; ++i)
+    {
+        ++map[i + width * i];
+        ++map[(width - i - 1) + width * i];
+    }
+}
+
+int Game::getBestIndexFromMap(const std::vector<char> &l_field) {
+    static auto colIsEmpty = [&](int col) -> bool{
+        for (int i = 0; i < width; ++i)
+        {
+            if (l_field[col + width * i] == 'X' || l_field[col + width * i] == 'O')
+                return (false);
+        }
+        return (true);
+    };
+    static auto rawIsEmpty = [&](int raw) -> bool{
+        for (int i = 0; i < width; ++i)
+        {
+            if (l_field[i + width * raw] == 'X' || l_field[i + width * raw] == 'O')
+                return (false);
+        }
+        return (true);
+    };
+
+    std::vector<int> copy(_bestIndexMap);
+    for (int i = 0; i < copy.size(); ++i){
+        if (!colIsEmpty(i % width))
+            ++copy[i];
+        if (!rawIsEmpty(i / width))
+            ++copy[i];
+    }
+    std::vector<std::pair<int, int>> sortedMap;
+    int i = 0;
+    std::transform(copy.begin(), copy.end(), std::back_inserter(sortedMap), [&](const auto& data){
+        return (std::move(std::make_pair(i++, data)));
+    });
+    std::sort(sortedMap.begin(), sortedMap.end(), [](const auto& lhs, const auto& rhs){
+        return lhs.second > rhs.second;
+    });
+    for (auto &x : sortedMap)
+    {
+        if (l_field[x.first] == ' ')
+            return (x.first);
+    }
+    return (-1);
+}
+
+int Game::getInstantWinIndex(const std::vector<char> &l_field, char sign) {
+    int col = -1;
+    int raw = -1;
+    int ascDiag = -1;
+    int descDiag = -1;
+
+    for (int i = 0; i < width; ++i)
+    {
+        int colCount = 0, rawCount = 0;
+        for (int j = 0; j < width; ++j)
+        {
+            if (l_field[j + width * i] == ' '){
+                raw = j + width * i;
+            }
+            else if (l_field[j + width * i] == sign){
+                ++rawCount;
+            }
+            if (l_field[i + width * j] == ' '){
+                col = i + width * j;
+            }
+            else if (l_field[i + width * j] == sign){
+                ++colCount;
+            }
+        }
+        if (rawCount == width - 1 && raw != -1)
+            return (raw);
+        if (colCount == width - 1 && col != -1)
+            return (col);
+        raw = col = -1;
+    }
+    int ascDiagCount = 0, descDiagCount = 0;
+    for (int i = 0; i < width; ++i)
+    {
+        if (l_field[i + width * i] == ' ')
+            descDiag = i + width * i;
+        else if (l_field[i + width * i] == sign)
+            ++descDiagCount;
+        if (l_field[i + width * (width - i - 1)] == ' ')
+            ascDiag = i + width * (width - i - 1);
+        else if (l_field[i + width * (width - i - 1)] == sign)
+            ++ascDiagCount;
+    }
+    if (descDiagCount == width - 1 && descDiag != -1)
+        return (descDiag);
+    if (ascDiagCount == width - 1 && ascDiag != -1)
+        return (ascDiag);
+    return (-1);
 }
