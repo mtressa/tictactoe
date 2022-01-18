@@ -1,11 +1,10 @@
+#include <QApplication>
 #include "Game.h"
 
-int main()
+int main(int argc, char *argv[])
 {
-//    std::ofstream fs("log");
-//    fs << "";
-//    fs.close();
+	QApplication a(argc, argv);
 	Game game;
-	game.start();
-	return 0;
+
+	return QApplication::exec();
 }
