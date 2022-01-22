@@ -28,6 +28,8 @@ public:
 	void		start();
 	GameArea	*getGameArea();
 
+	void	markCell(int index, char sign);
+
 	signals:
 	void	onGameStarted();
 
@@ -37,6 +39,9 @@ private:
 	QStackedWidget	*switcher;
 	MainMenu		*mainMenu;
 	GameArea		*gameArea;
+
+	void	goToMainMenu();
+	void	goToGameArea();
 };
 
 #endif // MAINWINDOW_H

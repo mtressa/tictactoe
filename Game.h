@@ -4,12 +4,14 @@
 
 #ifndef TICTACTOE_GAME_H
 #define TICTACTOE_GAME_H
+
 #include <iostream>
 #include <vector>
 #include <utility>
 #include <algorithm>
 #include <numeric>
 #include <thread>
+#include <mutex>
 #include "mainwindow.h"
 
 typedef enum	e_playerType{
@@ -39,16 +41,29 @@ class MainWindow;
 
 class Game: public QObject
 {
+	Q_OBJECT
 public:
-	void	start();
 	Game();
 	~Game();
-
 	GameData	*getGameData();
+
 	int			getDimension();
+	void		setGameData(GameData newGameData);
+	void		start();
+	void		restart();
+	void		stop();
+	void		startGameLoop();
+
+	signals:
+	void		onGameOver();
 
 private:
-	void	promptInput();
+	class	PromptCellCanceled: std::exception{
+	public:
+		const char *what() const _GLIBCXX_TXN_SAFE_DYN _GLIBCXX_NOTHROW override;
+	};
+
+	void	readInput();
 	void	promptGameMode();
 	void	promptGameType();
 	void	promptFirstMove();
@@ -65,7 +80,7 @@ private:
 	 * @param sign 'X' or 'O'
 	 * @return first: index of char in field, second: chance for win
 	 */
-	std::pair<int, int>	computeBestMove(const std::vector<char>& l_field, char sign);
+	std::pair<int, int>	computeBestMove(const std::vector<char>& l_field, char sign, bool isCaller = true);
 	int promptCell() const;
 	static std::vector<int> getFreeIndexes(const std::vector<char>&);
 	static char	getEnemySign(char mySign);
@@ -83,11 +98,11 @@ private:
 	int					dimension;
 	enum e_playerType	Player1Type, Player2Type;
 	GameData			gameData;
-	int					lastIndex;
 	std::thread			gameLoop;
+	std::mutex			fieldMutex;
 
-    //Graphical
-    MainWindow	*w;
+	//Graphical
+	MainWindow	*w;
 };
 
 #endif //TICTACTOE_GAME_H

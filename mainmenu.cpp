@@ -8,8 +8,8 @@
 #include "ui_MainMenu.h"
 
 
-MainMenu::MainMenu(QWidget *parent, Game *gameptr) :
-		QWidget(parent), ui(new Ui::MainMenu), game(gameptr) {
+MainMenu::MainMenu(QWidget *parent) :
+		QWidget(parent), ui(new Ui::MainMenu) {
 	ui->setupUi(this);
 	QObject::connect(ui->startButton, &QPushButton::clicked, [&](){
 		emit onStartButtonClicked();

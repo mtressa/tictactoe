@@ -11,14 +11,19 @@
 GameArea::GameArea(QWidget *parent, Game *gameptr) :
 		QWidget(parent), ui(new Ui::GameArea), game(gameptr) {
 	ui->setupUi(this);
+	ui->gridLayout->heightForWidth(400);
 }
 
 GameArea::~GameArea() {
 	delete ui;
+	for (auto cell : cells)
+	{
+		delete cell;
+	}
 }
 
 void GameArea::start() {
-	int dim = game->getDimension();
+	int dim;
 	switch (game->getGameData()->gameMode) {
 		case MODE3X3:
 			dim = 3;
@@ -34,6 +39,7 @@ void GameArea::start() {
 	for (int i = 0; i < dim * dim; ++i)
 	{
 		cells[i] = new IndexPushButton(i);
+		cells[i]->setStyleSheet(":disabled{ color: black }");
 		ui->gridLayout->addWidget(cells[i], i / dim, i % dim);
 		int temp = cells[i]->getIndex();
 		QObject::connect(cells[i], &QPushButton::clicked, [=](){
@@ -42,3 +48,21 @@ void GameArea::start() {
 	}
 }
 
+void GameArea::stop() {
+	for (auto cell : cells)
+		QObject::disconnect(cell, &QPushButton::clicked, nullptr, nullptr);
+	for (auto cell : cells) delete cell;
+}
+
+void GameArea::markCell(int index, char sign) {
+	cells[index]->markCell(sign);
+	cells[index]->setDisabled(true);
+}
+
+void GameArea::restart() {
+	for (auto x : cells)
+	{
+		x->markCell(' ');
+		x->setEnabled(true);
+	}
+}

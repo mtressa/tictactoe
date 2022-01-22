@@ -6,6 +6,8 @@
 #include "Game.h"
 #include "gamearea.h"
 
+#include <iomanip>
+
 class GameArea;
 
 Game::Game()
@@ -13,6 +15,7 @@ Game::Game()
 	w = new MainWindow(nullptr, this);
 	QObject::connect(w, &MainWindow::onGameStarted, [&](){
 		gameLoop = std::thread(&Game::start, this);
+		gameLoop.detach();
 	});
 	gameData = w->getGameData();
 	w->show();
@@ -92,11 +95,14 @@ void Game::promptGameType()
 	}
 }
 
-void Game::promptInput()
+void Game::setGameData(GameData newGameData) {
+	gameData = newGameData;
+}
+
+void Game::readInput()
 {
 //	promptGameMode();
 //	promptGameType();
-	gameData = w->getGameData();
 	switch (gameData.gameMode)
 	{
 		case MODE3X3:
@@ -129,21 +135,35 @@ void Game::promptInput()
 
 void Game::start()
 {
-	promptInput();
+	readInput();
 	fillBestIndexMap();
-	while (true)
-	{
-		std::cout<<"Enter loop"<<std::endl;
-		makePlayer1Move();
-		std::cout<<"player1 move"<<std::endl;
-		renderField();
-		if (isGameOver(_field))
-			break;
-		makePlayer2Move();
-		if (isGameOver(_field))
-			break;
-	}
+	startGameLoop();
 	printGameResult();
+}
+
+void Game::startGameLoop() {
+	fieldMutex.lock();
+	try
+	{
+		while (true)
+		{
+			std::cout<<"Enter loop"<<std::endl;
+			makePlayer1Move();
+			std::cout<<"player1 move"<<std::endl;
+			renderField();
+			if (isGameOver(_field))
+				break;
+			makePlayer2Move();
+			renderField();
+			if (isGameOver(_field))
+				break;
+		}
+		emit onGameOver();
+	}
+	catch (Game::PromptCellCanceled &e){
+		std::cout << e.what() << std::endl;
+	}
+	fieldMutex.unlock();
 }
 
 void Game::makePlayer1Move()
@@ -152,11 +172,13 @@ void Game::makePlayer1Move()
 	{
 		int idx = computeBestMove(_field, 'X').first;
 		_field[idx] = 'X';
+		w->markCell(idx, 'X');
 	}
 	else
 	{
 		int idx = promptCell();
 		_field[idx] = 'X';
+		w->markCell(idx, 'X');
 	}
 }
 
@@ -166,11 +188,13 @@ void Game::makePlayer2Move()
 	{
 		int idx = computeBestMove(_field, 'O').first;
 		_field[idx] = 'O';
+		w->markCell(idx, 'O');
 	}
 	else
 	{
 		int idx = promptCell();
 		_field[idx] = 'O';
+		w->markCell(idx, 'O');
 	}
 }
 
@@ -178,6 +202,8 @@ int Game::promptCell() const
 {
 	GameArea		*gameArea = w->getGameArea();
 	QFuture<int>	fut = QtFuture::connect(gameArea, &GameArea::cellClicked);
+	fut.waitForFinished();
+	if (fut.result() == -1) throw PromptCellCanceled();
 	return (fut.result());
 }
 
@@ -204,23 +230,23 @@ void Game::printGameResult() const
 }
 
 std::pair<int, int>
-Game::computeBestMove(const std::vector<char> &l_field, char sign)
+Game::computeBestMove(const std::vector<char> &l_field, char sign, bool isCaller)
 {
 	int winIndex = getInstantWinIndex(l_field, getEnemySign(sign));
 	if (winIndex != -1)
 	{
-		if ((sign != 'O') != (!gameData.firstMove))
-			return (std::make_pair(winIndex, 0));
-		else
+		if (isCaller)
 			return (std::make_pair(winIndex, 100));
+		else
+			return (std::make_pair(winIndex, 0));
 	}
 	winIndex = getInstantWinIndex(l_field, sign);
 	if (winIndex != -1)
 	{
-		if ((sign != 'O') != (!gameData.firstMove))
-			return (std::make_pair(winIndex, 100));
-		else
+		if (isCaller)
 			return (std::make_pair(winIndex, 0));
+		else
+			return (std::make_pair(winIndex, 100));
 	}
 	static auto comp = [](const auto &lhs, const auto &rhs)
 	{
@@ -232,16 +258,16 @@ Game::computeBestMove(const std::vector<char> &l_field, char sign)
 	std::vector<int>	freeIndexes = getFreeIndexes(l_field);
 	int                 freeIndexCount = freeIndexes.size();
 
-	if (freeIndexCount > 9)
+	if ((freeIndexCount > dimension * dimension / 2) || (freeIndexCount > 9))
 	{
 		std::cout << "No minimax"<<std::endl;
 		int temp = getBestIndexFromMap(l_field);
 		if (temp != -1)
 		{
-			if ((sign != 'O') != (!gameData.firstMove))
-				return (std::make_pair(temp, 100));
-			else
+			if (isCaller)
 				return (std::make_pair(temp, 0));
+			else
+				return (std::make_pair(temp, 100));
 		}
 	}
 	pair_vec			results;
@@ -260,41 +286,43 @@ Game::computeBestMove(const std::vector<char> &l_field, char sign)
 
 		if (isGameOver(copy))
 		{
-			if (!isPlayerWin(copy, 'X') != !gameData.firstMove)
-			{
-//                return (std::make_pair(idx, 0));
+			if (isDraw(copy))
 				results.emplace_back(idx, 0);
+			else if (!isPlayerWin(copy, sign) != !isCaller)
+			{
+//				return (std::make_pair(idx, 100));
+				results.emplace_back(idx, 100);
 			}
 			else
 			{
-				return (std::make_pair(idx, 100));
-//                results.emplace_back(idx, 100);
+				results.emplace_back(idx, 0);
+//				return (std::make_pair(idx, 0));
 			}
 		}
 		else
 		{
-			results.emplace_back(idx,
-									 computeBestMove(copy, getEnemySign(sign)).second);
+			results.emplace_back(idx, computeBestMove(copy, getEnemySign(sign), !isCaller).second);
 		}
 	}
 	pair_vec::iterator bestValueIter;
-	if ((sign != 'O') != (!gameData.firstMove)) // 'X' XOR firstMove
-		bestValueIter = std::max_element(results.begin(), results.end(),
-										 comp);
-	else
+	if (isCaller)
 		bestValueIter = std::min_element(results.begin(), results.end(),
 										 comp);
-	std::pair<int, int> ret = std::make_pair(bestValueIter->first,
-											 std::accumulate(results.begin(),
-															 results.end(),
-															 0,
-															 [](const auto &a,
-																const auto &b)
-															 {
-																 return (a +
-																		 b.second);
-															 }) /
-											 results.size());
+	else
+		bestValueIter = std::max_element(results.begin(), results.end(),
+										 comp);
+	auto	chance = std::accumulate(results.begin(), results.end(), 0,
+									 [](const auto &a, const auto &b){ return (a + b.second); });
+	chance /= results.size();
+	std::pair<int, int> ret = std::make_pair(bestValueIter->first, chance);
+//	if (getFreeIndexes(_field).size() == 9 - 4 )
+//	{
+//		for (auto x : results)
+//		{
+//			std::cout << x.first << ':' << x.second << ' ';
+//		}
+//		std::cout << '[' << l_field.data() << ']' << std::endl;
+//	}
 	return (ret);
 }
 
@@ -432,6 +460,7 @@ void Game::fillBestIndexMap() {
 		++map[i + dimension * i];
 		++map[(dimension - i - 1) + dimension * i];
 	}
+	for (auto i : _bestIndexMap) std::cout << i << '|';
 }
 
 int Game::getBestIndexFromMap(const std::vector<char> &l_field) {
@@ -451,6 +480,30 @@ int Game::getBestIndexFromMap(const std::vector<char> &l_field) {
 		}
 		return (true);
 	};
+	static auto upDiagIsEmpty = [&](int index) -> bool{
+		int col = index % dimension;
+		int raw = index / dimension;
+		if (dimension - raw - 1 != col)	return (true);
+		for (int i = 0; i < dimension; ++i)
+		{
+			int idx = (dimension - i - 1) + dimension * i;
+			if (l_field[idx] == 'X' || l_field[idx] == 'O' && idx == index)
+				return (false);
+		}
+		return (true);
+	};
+	static auto downDiagIsEmpty = [&](int index) -> bool{
+		int col = index % dimension;
+		int raw = index / dimension;
+		if (raw != col)	return (true);
+		for (int i = 0; i < dimension; ++i)
+		{
+			int idx = i + dimension * i;
+			if (l_field[idx] == 'X' || l_field[idx] == 'O' && idx == index)
+				return (false);
+		}
+		return (true);
+	};
 
 	std::vector<int> copy(_bestIndexMap);
 	for (int i = 0; i < copy.size(); ++i){
@@ -458,7 +511,12 @@ int Game::getBestIndexFromMap(const std::vector<char> &l_field) {
 			++copy[i];
 		if (!rawIsEmpty(i / dimension))
 			++copy[i];
+		if (!upDiagIsEmpty(i))
+			++copy[i];
+		if (!downDiagIsEmpty(i))
+			++copy[i];
 	}
+	for (auto i : copy) std::cout << i << '|';
 	std::vector<std::pair<int, int>> sortedMap;
 	int i = 0;
 	std::transform(copy.begin(), copy.end(), std::back_inserter(sortedMap), [&](const auto& data){
@@ -487,16 +545,16 @@ int Game::getInstantWinIndex(const std::vector<char> &l_field, char sign){
 		for (int j = 0; j < dimension; ++j)
 		{
 			if (l_field[j + dimension * i] == ' '){
-				raw = j + dimension * i;
+				col = j + dimension * i;
 			}
 			else if (l_field[j + dimension * i] == sign){
-				++rawCount;
+				++colCount;
 			}
 			if (l_field[i + dimension * j] == ' '){
-				col = i + dimension * j;
+				raw = i + dimension * j;
 			}
 			else if (l_field[i + dimension * j] == sign){
-				++colCount;
+				++rawCount;
 			}
 		}
 		if (rawCount == dimension - 1 && raw != -1)
@@ -522,4 +580,23 @@ int Game::getInstantWinIndex(const std::vector<char> &l_field, char sign){
 	if (ascDiagCount == dimension - 1 && ascDiag != -1)
 		return (ascDiag);
 	return (-1);
+}
+
+void Game::restart() {
+	fieldMutex.lock();
+	for (auto &x : _field)	x = ' ';
+	fieldMutex.unlock();
+	gameLoop = std::thread(&Game::startGameLoop, this);
+	gameLoop.detach();
+}
+
+void Game::stop() {
+	fieldMutex.lock();
+	_field.clear();
+	_bestIndexMap.clear();
+	fieldMutex.unlock();
+}
+
+const char *Game::PromptCellCanceled::what() const noexcept {
+	return "PromptCell() canceled";
 }

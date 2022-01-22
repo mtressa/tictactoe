@@ -26,6 +26,9 @@ public:
 	~GameArea() override;
 
 	void	start();
+	void	stop();
+	void	restart();
+	void	markCell(int index, char sign);
 
 	signals:
 	void	cellClicked(int index);

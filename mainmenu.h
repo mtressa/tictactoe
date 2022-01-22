@@ -19,7 +19,7 @@ class MainMenu : public QWidget {
 Q_OBJECT
 
 public:
-	explicit MainMenu(QWidget *parent = nullptr, Game * gameptr = nullptr);
+	explicit MainMenu(QWidget *parent = nullptr);
 	~MainMenu() override;
 
 	GameData	getGameData();
@@ -28,8 +28,7 @@ public:
 	void	onStartButtonClicked();
 
 private:
-    Ui::MainMenu *ui;
-	Game	*game;
+	Ui::MainMenu *ui;
 };
 
 

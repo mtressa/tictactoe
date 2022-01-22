@@ -21,6 +21,10 @@ public:
 	~IndexPushButton() override;
 
 	int		getIndex();
+	void	markCell(char sign);
+
+protected:
+	void resizeEvent(QResizeEvent *event);
 
 private:
 	Ui::IndexPushButton	*ui;
