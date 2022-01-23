@@ -1,7 +1,3 @@
-//
-// Created by ALIBEK on 17-Jan-22.
-//
-
 // You may need to build the project (run Qt uic code generator) to get "ui_IndexPushButton.h" resolved
 
 #include <QStyle>

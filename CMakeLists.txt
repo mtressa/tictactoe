@@ -16,7 +16,7 @@ find_package(Qt6 COMPONENTS
 add_executable(tictactoe Game.cpp
         main.cpp
         Game.h
-        mainwindow.h mainwindow.cpp mainwindow.ui mainmenu.cpp mainmenu.h mainmenu.ui gamearea.cpp gamearea.h gamearea.ui indexpushbutton.cpp indexpushbutton.h indexpushbutton.ui)
+        mainwindow.h mainwindow.cpp mainwindow.ui mainmenu.cpp mainmenu.h mainmenu.ui gamearea.cpp gamearea.h gamearea.ui indexpushbutton.cpp indexpushbutton.h indexpushbutton.ui game_state.cpp game_procedures.cpp)
 
 target_link_libraries(tictactoe
         Qt::Core

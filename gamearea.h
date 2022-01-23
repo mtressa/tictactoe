@@ -1,7 +1,3 @@
-//
-// Created by ALIBEK on 16-Jan-22.
-//
-
 #ifndef TICTACTOE_GAMEAREA_H
 #define TICTACTOE_GAMEAREA_H
 

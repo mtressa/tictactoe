@@ -1,7 +1,3 @@
-//
-// Created by Maliq Tressa on 12/28/21.
-//
-
 #ifndef TICTACTOE_GAME_H
 #define TICTACTOE_GAME_H
 
@@ -63,17 +59,26 @@ private:
 		const char *what() const _GLIBCXX_TXN_SAFE_DYN _GLIBCXX_NOTHROW override;
 	};
 
+	// Procedures:
 	void	readInput();
 	void	promptGameMode();
 	void	promptGameType();
 	void	promptFirstMove();
+	void	fillBestIndexMap();
+	void	updateSignMaps();
+	void	updateSignMaps(const std::vector<char> &l_field, std::vector<int> &xMap, std::vector<int> &oMap);
+	void	makePlayer1Move();
+	void	makePlayer2Move();
+	void	renderField() const;
+
 	bool	isGameOver(const std::vector<char>&) const;
 	bool	isFieldEmpty() const;
 	bool	isPlayerWin(const std::vector<char>& l_field, char sign) const;
 	bool	isDraw(const std::vector<char>& l_field) const;
+	bool	checkPrematureDraw(const std::vector<char>& l_field) const;
+
 	char	getFieldSign(int x, int y);
 	int		getInstantWinIndex(const std::vector<char>& l_field, char sign);
-	bool	checkPrematureDraw(const std::vector<char>& l_field) const;
 	/**
 	 *
 	 * @param l_field field to later copy
@@ -81,19 +86,11 @@ private:
 	 * @return first: index of char in field, second: chance for win
 	 */
 	std::pair<int, int>	computeBestMove(const std::vector<char>& l_field, char sign, bool isCaller = true);
-	int promptCell() const;
+	int		promptCell() const;
 	static std::vector<int> getFreeIndexes(const std::vector<char>&);
 	static char	getEnemySign(char mySign);
-	void		fillBestIndexMap();
 	const		std::vector<int>	getBestIndexMap(const std::vector<char> &l_field, const std::vector<int>& signMap);
 	int			getBestIndexFromMap(const std::vector<char> &l_field, std::vector<int> &signMap);
-	void		updateSignMaps();
-	void		updateSignMaps(const std::vector<char> &l_field, std::vector<int> &xMap, std::vector<int> &oMap);
-
-	void	makePlayer1Move();
-	void	makePlayer2Move();
-
-	void	renderField() const;
 	std::string printGameResult() const;
 
 	std::vector<char>	_field;
