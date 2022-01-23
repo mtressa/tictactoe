@@ -55,7 +55,7 @@ public:
 	void		startGameLoop();
 
 	signals:
-	void		onGameOver();
+	void		onGameOver(const std::string &);
 
 private:
 	class	PromptCellCanceled: std::exception{
@@ -72,8 +72,8 @@ private:
 	bool	isPlayerWin(const std::vector<char>& l_field, char sign) const;
 	bool	isDraw(const std::vector<char>& l_field) const;
 	char	getFieldSign(int x, int y);
-	int     getInstantWinIndex(const std::vector<char>& l_field, char sign);
-
+	int		getInstantWinIndex(const std::vector<char>& l_field, char sign);
+	bool	checkPrematureDraw(const std::vector<char>& l_field) const;
 	/**
 	 *
 	 * @param l_field field to later copy
@@ -84,17 +84,22 @@ private:
 	int promptCell() const;
 	static std::vector<int> getFreeIndexes(const std::vector<char>&);
 	static char	getEnemySign(char mySign);
-	void        fillBestIndexMap();
-	int         getBestIndexFromMap(const std::vector<char>& l_field);
+	void		fillBestIndexMap();
+	const		std::vector<int>	getBestIndexMap(const std::vector<char> &l_field, const std::vector<int>& signMap);
+	int			getBestIndexFromMap(const std::vector<char> &l_field, std::vector<int> &signMap);
+	void		updateSignMaps();
+	void		updateSignMaps(const std::vector<char> &l_field, std::vector<int> &xMap, std::vector<int> &oMap);
 
 	void	makePlayer1Move();
 	void	makePlayer2Move();
 
 	void	renderField() const;
-	void	printGameResult() const;
+	std::string printGameResult() const;
 
 	std::vector<char>	_field;
 	std::vector<int>	_bestIndexMap;
+	std::vector<int>	_xMap;
+	std::vector<int>	_oMap;
 	int					dimension;
 	enum e_playerType	Player1Type, Player2Type;
 	GameData			gameData;

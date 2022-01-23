@@ -1,5 +1,4 @@
 #include <QVBoxLayout>
-#include <QDialog>
 #include <QMessageBox>
 #include <thread>
 #include "ui_mainwindow.h"
@@ -31,9 +30,10 @@ MainWindow::MainWindow(QWidget *parent, Game *gameptr) :
 	QObject::connect(ui->actionExit, &QAction::triggered, [&](){
 		QApplication::exit(0);
 	});
-
 	QObject::connect(mainMenu, &MainMenu::onStartButtonClicked, this, &MainWindow::start);
-
+	QObject::connect(game, &Game::onGameOver, this, [&](const std::string& str) { //&MainWindow::messageGameOver);
+		QMessageBox::StandardButton result = QMessageBox::information(this, "Game Over", str.c_str());
+	});
 }
 
 MainWindow::~MainWindow()
@@ -82,4 +82,13 @@ void MainWindow::goToGameArea() {
 		ui->actionMain_Menu->setEnabled(true);
 		ui->actionRestart->setEnabled(true);
 	}
+}
+
+void MainWindow::messageGameOver(const std::string &str) {
+	std::thread t([&](){
+		QMessageBox mb;
+		mb.setText(str.c_str());
+		mb.exec();
+	});
+	t.detach();
 }

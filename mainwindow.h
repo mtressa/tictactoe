@@ -42,6 +42,7 @@ private:
 
 	void	goToMainMenu();
 	void	goToGameArea();
+	void	messageGameOver(const std::string &str);
 };
 
 #endif // MAINWINDOW_H
