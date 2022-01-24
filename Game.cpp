@@ -2,9 +2,6 @@
 #include "Game.h"
 #include "gamearea.h"
 
-template<typename T>
-using vec = std::vector<T>;
-
 class GameArea;
 
 Game::Game() {
@@ -73,26 +70,25 @@ Game::computeBestMove(const std::vector<char> &l_field, char sign, bool isCaller
 			return (std::make_pair(winIndex, 100));
 		}
 	}
-	winIndex = getInstantWinIndex(l_field, getEnemySign(sign));
-	if (winIndex != -1) {
-		if (freeIndexCount == getFreeIndexes(_field).size()) std::cout << "Block enemy at " << winIndex << std::endl;
-		if (isCaller) {
-			return (std::make_pair(winIndex, 100));
-		} else {
-			return (std::make_pair(winIndex, 0));
+	if (freeIndexCount == getFreeIndexes(_field).size())
+	{
+		winIndex = getInstantWinIndex(l_field, getEnemySign(sign));
+		if (winIndex != -1) {
+			std::cout << "Block enemy at " << winIndex << std::endl;
+			if (isCaller) {
+				return (std::make_pair(winIndex, 100));
+			} else {
+				return (std::make_pair(winIndex, 0));
+			}
 		}
 	}
 	static auto comp = [](const auto &lhs, const auto &rhs) {
 		return lhs.second < rhs.second;
 	};
 
-	vec<int> xMap(_xMap);
-	vec<int> oMap(_oMap);
-	updateSignMaps(l_field, xMap, oMap);
-
 	if ((freeIndexCount > 9)) {
 		std::cout << "No minimax" << std::endl;
-		int temp = getBestIndexFromMap(l_field, (sign == 'X') ? oMap : xMap);
+		int temp = getBestIndexFromMap(l_field, getEnemySign(sign));
 		if (temp != -1) {
 			if (isCaller) {
 				return (std::make_pair(temp, 0));
@@ -102,7 +98,7 @@ Game::computeBestMove(const std::vector<char> &l_field, char sign, bool isCaller
 		}
 	}
 
-	vec<int> newBestIndexes(getBestIndexMap(l_field, (sign == 'X') ? oMap : xMap));
+	vec<int> newBestIndexes(getBestIndexMap(l_field, getEnemySign(sign)));
 	std::sort(freeIndexes.begin(), freeIndexes.end(), [&newBestIndexes](const auto &lhs, const auto &rhs) -> bool {
 		return (newBestIndexes[lhs] < newBestIndexes[rhs]);
 	});
@@ -119,12 +115,13 @@ Game::computeBestMove(const std::vector<char> &l_field, char sign, bool isCaller
 		int idx = freeIndexes[i];
 
 		if (isGameOver(copy)) {
-			if (isDraw(copy))
-				results.emplace_back(idx, 0);
-			else if (!isPlayerWin(copy, sign) != !isCaller) {
+			if (!isPlayerWin(copy, sign) != !isCaller) {
 //				return (std::make_pair(idx, 100));
 				results.emplace_back(idx, 100);
-			} else {
+			}
+			else if (isDraw(copy))
+				results.emplace_back(idx, 0);
+			else {
 				results.emplace_back(idx, 0);
 //				return (std::make_pair(idx, 0));
 			}
@@ -183,16 +180,34 @@ int Game::getDimension() {
 	return (dimension);
 }
 
-const std::vector<int> Game::getBestIndexMap(const std::vector<char> &l_field, const std::vector<int> &signMap) {
-	std::vector<int> copy(_bestIndexMap);
+cvec<int> Game::computeSignMap(cvec<char> &l_field, char sign) {
+	vec<int>	signMap(l_field.size(), 0);
+	for (int i = 0; i < l_field.size(); ++i) {
+		int raw = i / dimension;
+		int col = i % dimension;
+		if (l_field[i] == sign) {
+			for (int j = 0; j < dimension; ++j) {
+				++signMap[col + dimension * j];
+				++signMap[j + dimension * raw];
+				if (raw == col) ++signMap[j + dimension * j];
+				if (dimension - raw - 1 == col) ++signMap[dimension - j - 1 + dimension * j];
+			}
+		}
+	}
+	return (std::move(signMap));
+}
+
+cvec<int> Game::getBestIndexMap(cvec<char> &l_field, char sign) {
+	vec<int> copy(_bestIndexMap);
+	cvec<int>	signMap(computeSignMap(l_field, sign));
 	std::transform(copy.begin(), copy.end(), signMap.begin(), copy.begin(), [](const auto &lhs, const auto &rhs) {
 		return (lhs + rhs);
 	});
 	return (std::move(copy));
 }
 
-int Game::getBestIndexFromMap(const std::vector<char> &l_field, std::vector<int> &signMap) {
-	const std::vector<int> copy(getBestIndexMap(l_field, signMap));
+int Game::getBestIndexFromMap(cvec<char> &l_field, char sign) {
+	const std::vector<int> copy(getBestIndexMap(l_field, 0));
 
 	std::vector<std::pair<int, int>> sortedMap;
 	int i = 0;

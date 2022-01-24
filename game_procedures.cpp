@@ -14,8 +14,6 @@ void Game::stop() {
 	fieldMutex.lock();
 	_field.clear();
 	_bestIndexMap.clear();
-	_xMap.clear();
-	_oMap.clear();
 	fieldMutex.unlock();
 }
 
@@ -25,13 +23,11 @@ void Game::startGameLoop() {
 		while (true) {
 			std::cout << "Enter loop" << std::endl;
 			makePlayer1Move();
-			updateSignMaps();
 			std::cout << "player1 move" << std::endl;
 			renderField();
 			if (isGameOver(_field))
 				break;
 			makePlayer2Move();
-			updateSignMaps();
 			renderField();
 			if (isGameOver(_field))
 				break;
@@ -148,8 +144,6 @@ void Game::promptFirstMove() {
 void Game::fillBestIndexMap() {
 	auto &map = _bestIndexMap;
 	map.resize(dimension * dimension);
-	_xMap.resize(dimension * dimension);
-	_oMap.resize(dimension * dimension);
 	for (int i = 0; i < dimension; ++i) {
 		for (int j = 0; j < dimension; ++j) {
 			++map[i + dimension * j];
@@ -159,32 +153,6 @@ void Game::fillBestIndexMap() {
 	for (int i = 0; i < dimension; ++i) {
 		++map[i + dimension * i];
 		++map[(dimension - i - 1) + dimension * i];
-	}
-}
-
-void Game::updateSignMaps() {
-	updateSignMaps(_field, _xMap, _oMap);
-}
-
-void Game::updateSignMaps(const std::vector<char> &l_field, std::vector<int> &xMap, std::vector<int> &oMap) {
-	for (int i = 0; i < l_field.size(); ++i) {
-		int raw = i / dimension;
-		int col = i % dimension;
-		if (l_field[i] == 'X') {
-			for (int j = 0; j < dimension; ++j) {
-				++xMap[col + dimension * j];
-				++xMap[j + dimension * raw];
-				if (raw == col) ++xMap[j + dimension * j];
-				if (dimension - raw - 1 == col) ++xMap[dimension - j - 1 + dimension * j];
-			}
-		} else if (l_field[i] == 'O') {
-			for (int j = 0; j < dimension; ++j) {
-				++oMap[col + dimension * j];
-				++oMap[j + dimension * raw];
-				if (raw == col) ++oMap[j + dimension * j];
-				if (dimension - raw - 1 == col) ++oMap[dimension - j - 1 + dimension * j];
-			}
-		}
 	}
 }
 
